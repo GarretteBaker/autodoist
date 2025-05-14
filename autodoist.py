@@ -972,7 +972,7 @@ def find_and_headerify_all_children(api, task, section_tasks, mode):
 
 
 def autodoist_magic(args, api, connection):
-
+    today = datetime.today()
     # Preallocate dictionaries and other values
     overview_task_ids = {}
     overview_task_labels = {}
@@ -1148,6 +1148,35 @@ def autodoist_magic(args, api, connection):
                     if task.is_completed:
                         continue
 
+                    if args.hide_future >= 0 and task.due is not None and task.due.date is not None:
+                        due_date = datetime.strptime(
+                            task.due.date, "%Y-%m-%d")
+                        future_diff = (
+                            due_date - today).days
+                        if future_diff >= args.hide_future:
+                            remove_label(
+                                task, next_action_label, overview_task_ids, overview_task_labels)
+                            db_update_value(connection, task, 'task_type', None)
+                            db_update_value(connection, task, 'parent_type', None)
+                            task_ids = find_and_clean_all_children(
+                                [], task, section_tasks)
+
+                            child_tasks_all = list(
+                                filter(lambda x: x.id in task_ids, section_tasks))
+
+                            for child_task in child_tasks_all:
+                                if child_task.due is not None and child_task.due.date is not None:
+                                    child_due_date = datetime.strptime(child_task.due.date, "%Y-%m-%d")
+                                    child_future_diff = (child_due_date - today).days
+                                    if child_future_diff >= args.hide_future:
+                                        remove_label(child_task, next_action_label,
+                                                    overview_task_ids, overview_task_labels)
+                                        db_update_value(
+                                            connection, child_task, 'task_type', None)
+                                        db_update_value(
+                                            connection, child_task, 'parent_type', None)
+                            continue
+
                     # Remove clean all task and subtask data
                     if task.content.startswith('*') or disable_section_labelling:
                         remove_label(task, next_action_label,
@@ -1314,6 +1343,19 @@ def autodoist_magic(args, api, connection):
                                 if child_task.content.startswith('*'):
                                     continue
 
+                                if child_task.due is not None and child_task.due.date is not None:
+                                    child_due_date = datetime.strptime(child_task.due.date, "%Y-%m-%d")
+                                    child_future_diff = (child_due_date - today).days
+                                    if child_future_diff >= args.hide_future:
+                                        remove_label(child_task, next_action_label,
+                                                    overview_task_ids, overview_task_labels)
+                                        db_update_value(
+                                            connection, child_task, 'task_type', None)
+                                        db_update_value(
+                                            connection, child_task, 'parent_type', None)
+                                        continue
+
+
                                 # Clean up for good measure.
                                 remove_label(
                                     child_task, next_action_label, overview_task_ids, overview_task_labels)
@@ -1351,7 +1393,7 @@ def autodoist_magic(args, api, connection):
 
                     # If task is too far in the future, remove the next_action tag and skip
                     try:
-                        if args.hide_future > 0 and task.due.date is not None:
+                        if args.hide_future >= 0 and task.due.date is not None:
                             due_date = datetime.strptime(
                                 task.due.date, "%Y-%m-%d")
                             future_diff = (
@@ -1508,48 +1550,51 @@ def main():
 
     # Start main loop
     while True:
-        start_time = time.time()
+        try:
+            start_time = time.time()
 
-        # Evaluate projects, sections, and tasks
-        overview_task_ids, overview_task_labels = autodoist_magic(
-            args, api, connection)
+            # Evaluate projects, sections, and tasks
+            overview_task_ids, overview_task_labels = autodoist_magic(
+                args, api, connection)
 
-        # Commit next action label changes
-        if args.label is not None:
-            api = commit_labels_update(api, overview_task_ids,
-                                       overview_task_labels)
+            # Commit next action label changes
+            if args.label is not None:
+                api = commit_labels_update(api, overview_task_ids,
+                                           overview_task_labels)
 
-        # Sync all queued up changes
-        if api.queue:
-            sync(api)
+            # Sync all queued up changes
+            if api.queue:
+                sync(api)
 
-        num_changes = len(api.queue)+len(api.overview_updated_ids)
+            num_changes = len(api.queue)+len(api.overview_updated_ids)
 
-        if num_changes:
-            if num_changes == 1:
-                logging.info(
-                    '%d change committed to Todoist.', num_changes)
+            if num_changes:
+                if num_changes == 1:
+                    logging.info(
+                        '%d change committed to Todoist.', num_changes)
+                else:
+                    logging.info(
+                        '%d changes committed to Todoist.', num_changes)
             else:
-                logging.info(
-                    '%d changes committed to Todoist.', num_changes)
-        else:
-            logging.info('No changes in queue, skipping sync.')
+                logging.info('No changes in queue, skipping sync.')
 
-        # If onetime is set, exit after first execution.
-        if args.onetime:
-            break
+            # If onetime is set, exit after first execution.
+            if args.onetime:
+                break
 
-        # Set a delay before next sync
-        end_time = time.time()
-        delta_time = end_time - start_time
+            # Set a delay before next sync
+            end_time = time.time()
+            delta_time = end_time - start_time
 
-        if args.delay - delta_time < 0:
-            logging.debug(
-                'Computation time %d is larger than the specified delay %d. Sleeping skipped.', delta_time, args.delay)
-        elif args.delay >= 0:
-            sleep_time = args.delay - delta_time
-            logging.debug('Sleeping for %d seconds', sleep_time)
-            time.sleep(sleep_time)
+            if args.delay - delta_time < 0:
+                logging.debug(
+                    'Computation time %d is larger than the specified delay %d. Sleeping skipped.', delta_time, args.delay)
+            elif args.delay >= 0:
+                sleep_time = args.delay - delta_time
+                logging.debug('Sleeping for %d seconds', sleep_time)
+                time.sleep(sleep_time)
+        except:
+            logging.debug("Exception encountered, continuing")
 
 
 if __name__ == '__main__':
