@@ -1148,7 +1148,7 @@ def autodoist_magic(args, api, connection):
                     if task.is_completed:
                         continue
 
-                    if args.hide_future >= 0 and task.due is not None and task.due.date is not None:
+                    if args.hide_future >= 0 and task.due is not None and task.due.date is not None and task.due.is_recurring:
                         due_date = datetime.strptime(
                             task.due.date, "%Y-%m-%d")
                         future_diff = (
@@ -1343,7 +1343,7 @@ def autodoist_magic(args, api, connection):
                                 if child_task.content.startswith('*'):
                                     continue
 
-                                if child_task.due is not None and child_task.due.date is not None:
+                                if child_task.due is not None and child_task.due.date is not None and child_task.due.is_recurring:
                                     child_due_date = datetime.strptime(child_task.due.date, "%Y-%m-%d")
                                     child_future_diff = (child_due_date - today).days
                                     if child_future_diff >= args.hide_future:
@@ -1550,7 +1550,8 @@ def main():
 
     # Start main loop
     while True:
-        try:
+        # try:
+        if True:
             start_time = time.time()
 
             # Evaluate projects, sections, and tasks
@@ -1593,8 +1594,8 @@ def main():
                 sleep_time = args.delay - delta_time
                 logging.debug('Sleeping for %d seconds', sleep_time)
                 time.sleep(sleep_time)
-        except:
-            logging.debug("Exception encountered, continuing")
+        # except:
+        #     logging.debug("Exception encountered, continuing")
 
 
 if __name__ == '__main__':
