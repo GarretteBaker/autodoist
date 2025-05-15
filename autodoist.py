@@ -1550,8 +1550,8 @@ def main():
 
     # Start main loop
     while True:
-        # try:
-        if True:
+        try:
+        # if True:
             start_time = time.time()
 
             # Evaluate projects, sections, and tasks
@@ -1594,8 +1594,8 @@ def main():
                 sleep_time = args.delay - delta_time
                 logging.debug('Sleeping for %d seconds', sleep_time)
                 time.sleep(sleep_time)
-        # except:
-        #     logging.debug("Exception encountered, continuing")
+        except:
+            logging.debug("Exception encountered, continuing")
 
 
 if __name__ == '__main__':
